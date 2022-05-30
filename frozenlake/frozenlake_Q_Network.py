@@ -9,7 +9,7 @@ def epsilon_greedy_policy(state, epsilon=0):
     if np.random.rand() < epsilon:
         return np.random.randint(output_size)
     else:
-        Q_value = model.predict(tf.one_hot([state], input_size))
+        Q_value = model.predict(tf.one_hot([state], input_size), verbose=0)
         return np.argmax(Q_value)
 
 def sample_experiences(batch_size):
@@ -31,7 +31,7 @@ def play_one_step(env, state, epsilon):
 def training_step(batch_size):
     experiences = sample_experiences(batch_size)
     states, actions, rewards, next_states, dones = experiences
-    next_Q_values = model.predict(tf.one_hot(next_states, input_size))
+    next_Q_values = model.predict(tf.one_hot(next_states, input_size), verbose=0)
     max_next_Q_values = np.max(next_Q_values, axis=1)
     target_Q_values = (rewards + (1 - dones) * discount_rate * max_next_Q_values)
     target_Q_values = target_Q_values.reshape(-1, 1)
@@ -44,7 +44,7 @@ def training_step(batch_size):
     optimizer.apply_gradients(zip(grads, model.trainable_variables))
 
 
-env = gym.make("FrozenLake-v1")
+env = gym.make("FrozenLake-v1", is_slippery=False)
 
 input_size = env.observation_space.n
 output_size = env.action_space.n
@@ -58,9 +58,9 @@ model = keras.models.Sequential([
 
 episodes = 1000
 batch_size = 32
-discount_rate = 0.95
-optimizer = keras.optimizers.Adam(learning_rate=1e-2)
-loss_fn = keras.losses.mean_squared_error
+discount_rate = 0.99
+optimizer = keras.optimizers.Adam(learning_rate=0.75)
+loss_fn = keras.losses.CategoricalCrossentropy()
 replay_memory = deque(maxlen=10000)
 
 rewards = 0
@@ -75,5 +75,5 @@ for episode in range(episodes):
         if done:
             break
     print(f"\rEpisode: {episode+1} / {episodes}, eps: {epsilon:.3f}, reward: {rewards}", end="")
-    if episode > 50:
+    if episode > (episodes//10):
         training_step(batch_size)
