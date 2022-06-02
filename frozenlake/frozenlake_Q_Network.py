@@ -71,16 +71,19 @@ env = gym.make("FrozenLake-v1")
 input_size = env.observation_space.n
 output_size = env.action_space.n
 
-main_model = keras.models.Sequential([
-    keras.layers.Dense(16, activation="relu", input_shape=[input_size]),
-    keras.layers.Dense(64, activation="relu"),
-    keras.layers.Dense(16, activation="relu"),
-    keras.layers.Dense(output_size, activation="softmax"),
-])
-target_model = keras.models.clone_model(main_model)
+def make_model():
+    model = keras.models.Sequential([
+        keras.layers.Dense(16, activation="relu", input_shape=[input_size]),
+        keras.layers.Dense(64, activation="relu"),
+        keras.layers.Dense(output_size, activation="softmax"),
+    ])
+    return model
 
-episodes = 5000
-batch_size = 200
+main_model = make_model()
+target_model = make_model()
+
+episodes = 1000
+batch_size = 100
 discount_rate = 0.99
 optimizer = keras.optimizers.RMSprop(learning_rate=0.25)
 loss_fn = keras.losses.CategoricalCrossentropy()
@@ -100,10 +103,11 @@ for episode in range(episodes):
             break
     print(f"\rEpisode: {episode+1} / {episodes}, eps: {epsilon:.3f}, reward: {rewards:.2f}", end="")
     rewards_list.append(rewards)
-    if (episode > (episodes//10)) and (episode % (episodes*0.05) == 0):
+    if (episode >= (episodes//10)) and (episode % (episodes*0.05) == 0):
         for _ in range(int(episodes*0.05)):
             training_step(batch_size)
-        target_model.set_weights(main_model.get_weights())
+        target_model.set_weights(main_model.get_weights())    
+        print(main_model(tf.one_hot([range(16)], input_size)))
 
 # fig, axes = plt.subplots(1, 2)
 sns.lineplot(range(1, len(rewards_list)+1), rewards_list, label="reward", color="red")
