@@ -27,12 +27,12 @@ def sample_experiences(batch_size):
 def play_one_step(env, state, epsilon):
     action = epsilon_greedy_policy(state, epsilon)
     next_state, reward, done, info = env.step(action)
-    if next_state == state:
-        reward -= 0.007
-    if done and (reward == 0):
-        reward -= 0.01
-    elif not done:
-        reward += 0.002
+    # if next_state == state:
+    #     reward -= 0.007
+    # if done and (reward == 0):
+    #     reward -= 0.01
+    # elif not done:
+    #     reward += 0.002
     replay_memory.append((state, action, reward, next_state, done))
     return next_state, reward, done, info
 
@@ -77,9 +77,7 @@ output_size = env.action_space.n
 
 def make_model():
     model = keras.models.Sequential([
-        keras.layers.Dense(16, activation="relu", input_shape=[None, 1]),
-        keras.layers.Dense(64, activation="relu"),
-        keras.layers.Dense(64, activation="relu"),
+        keras.layers.Dense(10, activation="relu", input_shape=[None, 1]),
         keras.layers.Dense(output_size),
     ])
     return model
@@ -87,20 +85,20 @@ def make_model():
 main_model = make_model()
 target_model = make_model()
 
-episodes = 2000
-batch_size = 200
-discount_rate = 0.99
-optimizer = keras.optimizers.RMSprop(learning_rate=1e-1)
-loss_fn = keras.losses.MeanSquaredError()
-replay_memory = deque(maxlen=100000)
+episodes = 1000
+batch_size = 50
+discount_rate = 0.95
+optimizer = keras.optimizers.RMSprop(learning_rate=1e-2)
+loss_fn = keras.losses.Huber()
+replay_memory = deque(maxlen=2000)
 
-rewards = 0
 rewards_list = []
 loss_list = []
 
 for episode in range(episodes):
     state = env.reset()
     epsilon = max(1 - episode / (episodes*2/3.), 0.01)
+    rewards = 0
     while True:
         state, reward, done, info = play_one_step(env, state, epsilon)
         rewards += reward
@@ -108,7 +106,7 @@ for episode in range(episodes):
             break
     print(f"\rEpisode: {episode+1} / {episodes}, eps: {epsilon:.3f}, reward: {rewards:.2f}", end="")
     rewards_list.append(rewards)
-    if (episode >= (episodes//10)) and (episode % (episodes*0.05) == 0):
+    if (episode % (episodes*0.05) == 0):
         for _ in range(int(episodes*0.05)):
             training_step(batch_size)
         target_model.set_weights(main_model.get_weights())    
