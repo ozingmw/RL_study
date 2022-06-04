@@ -47,7 +47,7 @@ def training_step(batch_size):
     with tf.GradientTape() as tape:
         all_Q_values = tf.reshape(main_model(states.reshape(-1, 1)), [-1, output_size])
         Q_values = tf.reduce_sum(all_Q_values * mask, axis=1, keepdims=True)
-        loss = tf.reduce_mean(loss_fn(target_Q_values, Q_values))
+        loss = tf.reduce_mean(loss_fn(Q_values, target_Q_values))
         # loss_list.append(loss)
     # print(f", loss: {loss:.4f}", end="")
     grads = tape.gradient(loss, main_model.trainable_variables)
@@ -61,12 +61,13 @@ def bot_render(main_model, repeat=1):
         middle_reward = 0
         while True:
             env.render()
-            action = np.argmax(tf.reshape(main_model.predict(np.array(state).reshape(-1, 1), verbose=0), [-1, output_size]))
+            action = np.argmax((main_model.predict(np.array(state).reshape(-1, 1), verbose=0)).reshape(-1, 4))
             state, reward, done, info = env.step(action)
             middle_reward += reward
             if done:
                 break
         total_reward.append(middle_reward)
+        print(f"{middle_reward}")
     print(f"{sum(total_reward)/repeat:.3f}")
 
 
@@ -75,24 +76,23 @@ env = gym.make("FrozenLake-v1")
 input_size = env.observation_space.n
 output_size = env.action_space.n
 
-def make_model():
-    model = keras.models.Sequential([
-        keras.layers.Dense(10, activation="relu", input_shape=[None, 1]),
-        keras.layers.Dense(output_size),
-    ])
-    return model
+main_model = keras.models.Sequential([
+    keras.layers.Dense(16, activation="relu", input_shape=[None, 1]),
+    keras.layers.Dense(8, activation="relu"),
+    keras.layers.Dense(output_size),
+])
 
-main_model = make_model()
-target_model = make_model()
+target_model = keras.models.clone_model(main_model)
 
 episodes = 1000
 batch_size = 50
-discount_rate = 0.95
-optimizer = keras.optimizers.RMSprop(learning_rate=1e-2)
+discount_rate = 0.99
+optimizer = keras.optimizers.Adam(learning_rate=1e-2)
 loss_fn = keras.losses.Huber()
-replay_memory = deque(maxlen=2000)
+replay_memory = deque(maxlen=100000)
 
 rewards_list = []
+# success = 0
 loss_list = []
 
 for episode in range(episodes):
@@ -106,7 +106,7 @@ for episode in range(episodes):
             break
     print(f"\rEpisode: {episode+1} / {episodes}, eps: {epsilon:.3f}, reward: {rewards:.2f}", end="")
     rewards_list.append(rewards)
-    if (episode % (episodes*0.05) == 0):
+    if ((episode+1) % (episodes*0.05) == 0):
         for _ in range(int(episodes*0.05)):
             training_step(batch_size)
         target_model.set_weights(main_model.get_weights())    
