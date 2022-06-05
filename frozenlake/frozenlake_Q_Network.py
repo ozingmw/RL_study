@@ -6,13 +6,20 @@ import tensorflow as tf
 from tensorflow import keras
 import seaborn as sns
 
+
+def to_one_hot(array):
+    return tf.one_hot(array, input_size)
+
+def nargmax(array):
+    return np.random.choice(np.flatnonzero(array == array.max()))
+    np.max(array) == array
+
 def epsilon_greedy_policy(state, epsilon=0):
     if np.random.rand() < epsilon:
         return np.random.randint(output_size)
     else:
-        Q_value = main_model.predict(np.array(state).reshape(-1, 1), verbose=0)
-        return np.argmax(Q_value)
-        # return np.random.choice(output_size, 1, p=Q_value[0])[0]
+        Q_value = main_model.predict(tf.reshape(to_one_hot(state), [-1, input_size]), verbose=0)
+        return nargmax(Q_value)
 
 def sample_experiences(batch_size):
     indices = np.random.randint(len(replay_memory), size=batch_size)
@@ -36,24 +43,39 @@ def play_one_step(env, state, epsilon):
     replay_memory.append((state, action, reward, next_state, done))
     return next_state, reward, done, info
 
+# def training_step(batch_size):
+#     experiences = sample_experiences(batch_size)
+#     states, actions, rewards, next_states, dones = experiences
+#     next_Q_values = target_model.predict(next_states.reshape(-1, 1), verbose=0).reshape(-1, 4)
+#     max_next_Q_values = np.max(next_Q_values, axis=1)
+#     target_Q_values = (rewards + (1 - dones) * discount_rate * max_next_Q_values)
+#     target_Q_values = target_Q_values.reshape(-1, 1)
+#     mask = tf.one_hot(actions, output_size)
+#     with tf.GradientTape() as tape:
+#         all_Q_values = tf.reshape(main_model(states.reshape(-1, 1)), [-1, output_size])
+#         Q_values = tf.reduce_sum(all_Q_values * mask, axis=1, keepdims=True)
+#         loss = tf.reduce_mean(loss_fn(Q_values, target_Q_values))
+#     grads = tape.gradient(loss, main_model.trainable_variables)
+#     optimizer.apply_gradients(zip(grads, main_model.trainable_variables))
+
 def training_step(batch_size):
     experiences = sample_experiences(batch_size)
     states, actions, rewards, next_states, dones = experiences
-    next_Q_values = target_model.predict(next_states.reshape(-1, 1), verbose=0).reshape(-1, 4)
-    max_next_Q_values = np.max(next_Q_values, axis=1)
-    target_Q_values = (rewards + (1 - dones) * discount_rate * max_next_Q_values)
+    next_Q_values = main_model.predict(tf.reshape(to_one_hot(next_states), [-1, input_size]), verbose=0)
+    best_next_actions = nargmax(next_Q_values)
+    next_mask = tf.one_hot(best_next_actions, output_size).numpy()
+    next_best_Q_values = (target_model.predict(to_one_hot(next_states), verbose=0) * next_mask).mean(axis=1)
+    target_Q_values = (rewards + (1 - dones) * discount_rate * next_best_Q_values)
     target_Q_values = target_Q_values.reshape(-1, 1)
     mask = tf.one_hot(actions, output_size)
     with tf.GradientTape() as tape:
-        all_Q_values = tf.reshape(main_model(states.reshape(-1, 1)), [-1, output_size])
+        all_Q_values = tf.reshape(main_model(to_one_hot(states)), [-1, output_size])
         Q_values = tf.reduce_sum(all_Q_values * mask, axis=1, keepdims=True)
-        loss = tf.reduce_mean(loss_fn(Q_values, target_Q_values))
-        # loss_list.append(loss)
-    # print(f", loss: {loss:.4f}", end="")
+        loss = tf.reduce_mean(loss_fn(target_Q_values, Q_values))
     grads = tape.gradient(loss, main_model.trainable_variables)
     optimizer.apply_gradients(zip(grads, main_model.trainable_variables))
 
-def bot_render(main_model, repeat=1):
+def bot_render(model, repeat=1):
     total_reward = []
     for _ in range(repeat):    
         state = env.reset()
@@ -61,7 +83,7 @@ def bot_render(main_model, repeat=1):
         middle_reward = 0
         while True:
             env.render()
-            action = np.argmax((main_model.predict(np.array(state).reshape(-1, 1), verbose=0)).reshape(-1, 4))
+            action = nargmax(model.predict(tf.reshape(to_one_hot(state), [-1, input_size]), verbose=0))
             state, reward, done, info = env.step(action)
             middle_reward += reward
             if done:
@@ -71,29 +93,29 @@ def bot_render(main_model, repeat=1):
     print(f"{sum(total_reward)/repeat:.3f}")
 
 
-env = gym.make("FrozenLake-v1")
+env = gym.make("FrozenLake-v1", is_slippery=False)
 
 input_size = env.observation_space.n
 output_size = env.action_space.n
 
 main_model = keras.models.Sequential([
-    keras.layers.Dense(16, activation="relu", input_shape=[None, 1]),
+    keras.layers.Dense(16, activation="relu", input_shape=[input_size]),
     keras.layers.Dense(8, activation="relu"),
     keras.layers.Dense(output_size),
 ])
 
 target_model = keras.models.clone_model(main_model)
+target_model.set_weights(main_model.get_weights())
 
 episodes = 1000
-batch_size = 50
-discount_rate = 0.99
-optimizer = keras.optimizers.Adam(learning_rate=1e-2)
+batch_size = 32
+discount_rate = 0.95
+optimizer = keras.optimizers.Adam(learning_rate=0.0005)
 loss_fn = keras.losses.Huber()
 replay_memory = deque(maxlen=100000)
 
 rewards_list = []
 # success = 0
-loss_list = []
 
 for episode in range(episodes):
     state = env.reset()
@@ -109,8 +131,12 @@ for episode in range(episodes):
     if ((episode+1) % (episodes*0.05) == 0):
         for _ in range(int(episodes*0.05)):
             training_step(batch_size)
-        target_model.set_weights(main_model.get_weights())    
-        print(main_model(np.array([range(16)]))[0])
+        target_weights = target_model.get_weights()
+        online_weights = main_model.get_weights()
+        for index in range(len(target_weights)):
+           target_weights[index] = 0.99 * target_weights[index] + 0.01 * online_weights[index]
+        target_model.set_weights(target_weights)  
+        print(main_model(to_one_hot(np.array([range(16)])))[0])
 
 # fig, axes = plt.subplots(1, 2)
 sns.lineplot(range(1, len(rewards_list)+1), rewards_list, label="reward", color="red")

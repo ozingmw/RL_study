@@ -3,5 +3,5 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 
-a = tf.constant([1,1,13,23,23,14,123,4,1])
-print(a.shape)
+array = np.array([[0,1,0,1], [9,8,7,6], [2,5,5,5], [8,5,4,4], [0,2,2,3]])
+print(np.max(array, axis=1) == array)
