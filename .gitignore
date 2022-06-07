@@ -1,2 +1,2 @@
-./img_log
-./test.py
+./img_log/*
+test.py
