@@ -1,2 +1,3 @@
-./img_log/*
+img_log/*
+model/*
 test.py
