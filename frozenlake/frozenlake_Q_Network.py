@@ -1,4 +1,5 @@
 from collections import deque
+from datetime import datetime
 import gym
 from matplotlib import pyplot as plt
 import numpy as np
@@ -11,9 +12,10 @@ def to_one_hot(array):
     return tf.one_hot(array, input_size)
 
 def nargmax(array):
-    return np.random.choice(np.flatnonzero(array == array.max()))
-    np.max(array) == array
-
+    epsilon = 1e-6
+    array += np.random.rand(*array.shape) * epsilon
+    return np.argmax(array, axis=1)
+    
 def epsilon_greedy_policy(state, epsilon=0):
     if np.random.rand() < epsilon:
         return np.random.randint(output_size)
@@ -32,7 +34,7 @@ def sample_experiences(batch_size):
     return states, actions, rewards, next_states, dones
 
 def play_one_step(env, state, epsilon):
-    action = epsilon_greedy_policy(state, epsilon)
+    action = int(epsilon_greedy_policy(state, epsilon))
     next_state, reward, done, info = env.step(action)
     # if next_state == state:
     #     reward -= 0.007
@@ -61,12 +63,18 @@ def play_one_step(env, state, epsilon):
 def training_step(batch_size):
     experiences = sample_experiences(batch_size)
     states, actions, rewards, next_states, dones = experiences
-    next_Q_values = main_model.predict(tf.reshape(to_one_hot(next_states), [-1, input_size]), verbose=0)
-    best_next_actions = nargmax(next_Q_values)
-    next_mask = tf.one_hot(best_next_actions, output_size).numpy()
-    next_best_Q_values = (target_model.predict(to_one_hot(next_states), verbose=0) * next_mask).mean(axis=1)
-    target_Q_values = (rewards + (1 - dones) * discount_rate * next_best_Q_values)
+    next_Q_values = target_model.predict(to_one_hot(next_states), verbose=0).reshape(-1, 4)
+    max_next_Q_values = np.max(next_Q_values, axis=1)
+    target_Q_values = (rewards + (1 - dones) * discount_rate * max_next_Q_values)
     target_Q_values = target_Q_values.reshape(-1, 1)
+#     experiences = sample_experiences(batch_size)
+#     states, actions, rewards, next_states, dones = experiences
+#     next_Q_values = main_model.predict(tf.reshape(to_one_hot(next_states), [-1, input_size]), verbose=0)
+#     best_next_actions = nargmax(next_Q_values)
+#     next_mask = tf.one_hot(best_next_actions, output_size).numpy()
+#     next_best_Q_values = (target_model.predict(to_one_hot(next_states), verbose=0) * next_mask).mean(axis=1)
+#     target_Q_values = (rewards + (1 - dones) * discount_rate * next_best_Q_values)
+#     target_Q_values = target_Q_values.reshape(-1, 1)
     mask = tf.one_hot(actions, output_size)
     with tf.GradientTape() as tape:
         all_Q_values = tf.reshape(main_model(to_one_hot(states)), [-1, output_size])
@@ -83,8 +91,8 @@ def bot_render(model, repeat=1):
         middle_reward = 0
         while True:
             env.render()
-            action = nargmax(model.predict(tf.reshape(to_one_hot(state), [-1, input_size]), verbose=0))
-            state, reward, done, info = env.step(action)
+            action = nargmax(main_model.predict(tf.reshape(to_one_hot(state), [-1, input_size]), verbose=0))
+            state, reward, done, info = env.step(int(action))
             middle_reward += reward
             if done:
                 break
@@ -93,7 +101,7 @@ def bot_render(model, repeat=1):
     print(f"{sum(total_reward)/repeat:.3f}")
 
 
-env = gym.make("FrozenLake-v1", is_slippery=False)
+env = gym.make("FrozenLake-v1", is_slippery=True)
 
 input_size = env.observation_space.n
 output_size = env.action_space.n
@@ -107,12 +115,12 @@ main_model = keras.models.Sequential([
 target_model = keras.models.clone_model(main_model)
 target_model.set_weights(main_model.get_weights())
 
-episodes = 1000
+episodes = 100000
 batch_size = 32
 discount_rate = 0.95
-optimizer = keras.optimizers.Adam(learning_rate=0.0005)
+optimizer = keras.optimizers.Adam(learning_rate=0.00005)
 loss_fn = keras.losses.Huber()
-replay_memory = deque(maxlen=100000)
+replay_memory = deque(maxlen=1000000)
 
 rewards_list = []
 # success = 0
@@ -128,9 +136,9 @@ for episode in range(episodes):
             break
     print(f"\rEpisode: {episode+1} / {episodes}, eps: {epsilon:.3f}, reward: {rewards:.2f}", end="")
     rewards_list.append(rewards)
-    if ((episode+1) % (episodes*0.05) == 0):
-        for _ in range(int(episodes*0.05)):
-            training_step(batch_size)
+    if ((episode+1) >= (episodes*0.1)):
+        training_step(batch_size)
+    if (episode % (episodes*0.05) == 0): 
         target_weights = target_model.get_weights()
         online_weights = main_model.get_weights()
         for index in range(len(target_weights)):
@@ -138,10 +146,14 @@ for episode in range(episodes):
         target_model.set_weights(target_weights)  
         print(main_model(to_one_hot(np.array([range(16)])))[0])
 
+main_model.save(f"./model/frozenlake_{datetime.now().date()}.h5")
+
 # fig, axes = plt.subplots(1, 2)
 sns.lineplot(range(1, len(rewards_list)+1), rewards_list, label="reward", color="red")
 # sns.lineplot(range(1, len(move_list)+1), move_list, label="move", color="blue", ax=axes[1])
 sns.set(style="darkgrid")
+plt.title(f"score : {(sum(rewards_list) / episodes):.3f}")
 plt.show()
+plt.savefig(f"./img_log/frozenlake/{datetime.now()}.png", dpi=300)
 
 bot_render(main_model, 5)
