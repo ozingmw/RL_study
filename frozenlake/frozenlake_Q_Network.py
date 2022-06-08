@@ -117,8 +117,8 @@ target_model.set_weights(main_model.get_weights())
 
 episodes = 100000
 batch_size = 32
-discount_rate = 0.95
-optimizer = keras.optimizers.Adam(learning_rate=0.00005)
+discount_rate = 0.99
+optimizer = keras.optimizers.Adam(learning_rate=0.00025, clipnorm=1.0)
 loss_fn = keras.losses.Huber()
 replay_memory = deque(maxlen=1000000)
 
@@ -138,22 +138,24 @@ for episode in range(episodes):
     rewards_list.append(rewards)
     if ((episode+1) >= (episodes*0.1)):
         training_step(batch_size)
-    if (episode % (episodes*0.05) == 0): 
+    if ((episode+1) % (episodes*0.05) == 0): 
         target_weights = target_model.get_weights()
         online_weights = main_model.get_weights()
         for index in range(len(target_weights)):
            target_weights[index] = 0.99 * target_weights[index] + 0.01 * online_weights[index]
-        target_model.set_weights(target_weights)  
+        target_model.set_weights(target_weights)
+        # target_model.set_weights(main_model.get_weights())  
         print(main_model(to_one_hot(np.array([range(16)])))[0])
 
-main_model.save(f"./model/frozenlake_{datetime.now().date()}.h5")
+now = datetime.now().strftime("%y%m%d_%H%M")
+main_model.save(f"./model/frozenlake/frozenlake_{now}.h5")
 
 # fig, axes = plt.subplots(1, 2)
 sns.lineplot(range(1, len(rewards_list)+1), rewards_list, label="reward", color="red")
 # sns.lineplot(range(1, len(move_list)+1), move_list, label="move", color="blue", ax=axes[1])
 sns.set(style="darkgrid")
-plt.title(f"score : {(sum(rewards_list) / episodes):.3f}")
+plt.title(f"score : {(sum(rewards_list) / len(rewards_list) * 100):.3f}%")
 plt.show()
-plt.savefig(f"./img_log/frozenlake/{datetime.now()}.png", dpi=300)
+plt.savefig(f"./img_log/frozenlake/{now}.png", dpi=300)
 
 bot_render(main_model, 5)
