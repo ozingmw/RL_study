@@ -155,7 +155,7 @@ sns.lineplot(range(1, len(rewards_list)+1), rewards_list, label="reward", color=
 # sns.lineplot(range(1, len(move_list)+1), move_list, label="move", color="blue", ax=axes[1])
 sns.set(style="darkgrid")
 plt.title(f"score : {(sum(rewards_list) / len(rewards_list) * 100):.3f}%")
-plt.show()
 plt.savefig(f"./img_log/frozenlake/{now}.png", dpi=300)
+plt.show()
 
 bot_render(main_model, 5)
