@@ -1,4 +1,5 @@
 from collections import deque
+from datetime import datetime
 import time
 import gym
 import numpy as np
@@ -16,12 +17,21 @@ def nargmax(array):
     array += np.random.rand(*array.shape) * epsilon
     return np.argmax(array, axis=1)
 
-def epsilon_greedy_policy(state, epsilon=0):
+def nargmax_by_legal_action(array, legal_action):
+    epsilon = 1e-6
+    array += np.random.rand(*array.shape) * epsilon
+    mask = np.zeros_like(array)
+    for temp in legal_action:
+        mask[0][temp] = 1
+    array *= mask
+    return np.argmax(array, axis=1)    
+
+def epsilon_greedy_policy(env, state, epsilon=0):
     if np.random.rand() < epsilon:
-        return env.action_space.sample()
+        return np.random.choice(env.state.board.get_legal_action(), 1)
     else:
         Q_value = main_model.predict(state, verbose=0)
-        return nargmax(Q_value)
+        return nargmax_by_legal_action(Q_value, env.state.board.get_legal_action())
 
 def sample_experiences(batch_size):
     indices = np.random.randint(len(replay_memory), size=batch_size)
@@ -34,8 +44,8 @@ def sample_experiences(batch_size):
     return states, actions, rewards, next_states, dones
 
 def play_one_step(env, state, epsilon):
-    state = np.reshape(state, [-1, input_size**2])
-    action = int(epsilon_greedy_policy(state, epsilon))
+    state = np.reshape(state, [-1, input_size**2])  # shape : [1, 15*15]
+    action = int(epsilon_greedy_policy(env, state, epsilon))
     # try:
     #     action = int(action)
     # except:
@@ -44,19 +54,20 @@ def play_one_step(env, state, epsilon):
     #     y = ord(xy[1])-65
     #     action = env.state.board.coord_to_action(x, y)
     next_state, reward, done, info = env.step(action)
+    next_state = np.reshape(next_state, [-1, input_size**2])    # shape : [1, 15*15]
     replay_memory.append((state, action, reward, next_state, done))
     return next_state, reward, done, info
 
 def training_step(batch_size):
     experiences = sample_experiences(batch_size)
     states, actions, rewards, next_states, dones = experiences
-    next_Q_values = target_model.predict(next_states, verbose=0).reshape(-1, 4)
+    next_Q_values = target_model.predict(np.reshape(next_states, [batch_size, -1]), verbose=0)
     max_next_Q_values = np.max(next_Q_values, axis=1)
     target_Q_values = (rewards + (1 - dones) * discount_rate * max_next_Q_values)
     target_Q_values = target_Q_values.reshape(-1, 1)
     mask = tf.one_hot(actions, output_size)
     with tf.GradientTape() as tape:
-        all_Q_values = main_model(states)
+        all_Q_values = main_model(np.reshape(states, [batch_size, -1]))
         Q_values = tf.reduce_sum(all_Q_values * mask, axis=1, keepdims=True)
         loss = tf.reduce_mean(loss_fn(target_Q_values, Q_values))
     grads = tape.gradient(loss, main_model.trainable_variables)
@@ -73,26 +84,29 @@ main_model = keras.models.Sequential([
     keras.layers.Dense(output_size),
 ])
 
-main_model.summary()
-
 target_model = keras.models.clone_model(main_model)
 target_model.set_weights(main_model.get_weights())
 
-episodes = 100
+episodes = 20000
 batch_size = 32
 discount_rate = 0.99
 optimizer = keras.optimizers.Adam(learning_rate=0.00025, clipnorm=1.0)
 loss_fn = keras.losses.Huber()
-replay_memory = deque(maxlen=1000000)
+replay_memory = deque(maxlen=10000000)
+
+rewards = 0
 
 for episode in range(episodes):
     state = env.reset()
-    epsilon = max(1 - episode / (episodes*2/3.), 0.0)
-    rewards = 0
+    epsilon = max(1 - episode / (episodes*2/3.), 0.001)
+    # env.render()
     while True:
         state, reward, done, info = play_one_step(env, state, epsilon)
+        rewards += reward
+        # env.render()
         if done:
             break
+        # time.sleep(1)
     print(f"\rEpisode: {episode+1} / {episodes}, eps: {epsilon:.3f}, reward: {rewards:.2f}", end="")
     if ((episode+1) >= (episodes*0.1)):
         training_step(batch_size)
@@ -102,25 +116,28 @@ for episode in range(episodes):
         for index in range(len(target_weights)):
            target_weights[index] = 0.99 * target_weights[index] + 0.01 * online_weights[index]
         target_model.set_weights(target_weights)
+        env.render()
+
+now = datetime.now().strftime("%y%m%d_%H%M")
+main_model.save(f"./model/omok/omok_{now}.h5")
 
 
-# for episode in range(episodes):
-#     env.reset()
-#     for _ in range(20):
-#         env.render()
-#         # action = input("Type location [EX : (10 H)] : ")
-#         action = env.action_space.sample()
+env.reset()
+env.ai_opponent()
+env.render()
+while True:
+    action = input("Type location [EX : (10 H)] : ")
+    
+    try:
+        action = int(action)
+    except:
+        xy = action.split(" ")
+        x = int(xy[0])
+        y = ord(xy[1])-65
+        action = env.state.board.coord_to_action(x, y)
 
-#         try:
-#             action = int(action)
-#         except:
-#             xy = action.split(" ")
-#             x = int(xy[0])
-#             y = ord(xy[1])-65
-#             action = env.state.board.coord_to_action(x, y)
-
-#         observation, reward, done, info = env.step(action)
-#         if done:
-#             print ("Game is Over")
-#             break
-#         time.sleep(1)
+    observation, reward, done, info = env.step(action)
+    env.render()
+    if done:
+        print ("Game is Over")
+        break
