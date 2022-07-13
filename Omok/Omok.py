@@ -23,7 +23,7 @@ def nargmax_by_legal_action(array, legal_action):
     mask = np.zeros_like(array)
     for temp in legal_action:
         mask[0][temp] = 1
-    legal_array = [float("-inf") if mask[0][legal_index] == 0 else array[0][legal_index] for legal_index in legal_action]
+    legal_array = [float("-inf") if mask[0][array_index] == 0 else array[0][array_index] for array_index in array[0]]
     legal_array = np.reshape(legal_array, [1, -1])
     return np.argmax(legal_array, axis=1) 
 
