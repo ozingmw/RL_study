@@ -23,15 +23,17 @@ def nargmax_by_legal_action(array, legal_action):
     mask = np.zeros_like(array)
     for temp in legal_action:
         mask[0][temp] = 1
-    array *= mask
-    return np.argmax(array, axis=1)    
+    legal_array = [float("-inf") if mask[0][legal_index] == 0 else array[0][legal_index] for legal_index in legal_action]
+    legal_array = np.reshape(legal_array, [1, -1])
+    return np.argmax(legal_array, axis=1) 
 
 def epsilon_greedy_policy(env, state, epsilon=0):
+    legal_action = env.state.board.get_legal_action()
     if np.random.rand() < epsilon:
-        return np.random.choice(env.state.board.get_legal_action(), 1)
+        return np.random.choice(legal_action, 1)
     else:
         Q_value = main_model.predict(state, verbose=0)
-        return nargmax_by_legal_action(Q_value, env.state.board.get_legal_action())
+        return nargmax_by_legal_action(Q_value, legal_action)
 
 def sample_experiences(batch_size):
     indices = np.random.randint(len(replay_memory), size=batch_size)
@@ -87,7 +89,7 @@ main_model = keras.models.Sequential([
 target_model = keras.models.clone_model(main_model)
 target_model.set_weights(main_model.get_weights())
 
-episodes = 20000
+episodes = 100000
 batch_size = 32
 discount_rate = 0.99
 optimizer = keras.optimizers.Adam(learning_rate=0.00025, clipnorm=1.0)
@@ -119,7 +121,7 @@ for episode in range(episodes):
         env.render()
 
 now = datetime.now().strftime("%y%m%d_%H%M")
-main_model.save(f"./model/omok/omok_{now}.h5")
+main_model.save(f"../model/omok/omok_{now}.h5")
 
 
 env.reset()
