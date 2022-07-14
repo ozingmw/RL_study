@@ -89,7 +89,7 @@ main_model = keras.models.Sequential([
 target_model = keras.models.clone_model(main_model)
 target_model.set_weights(main_model.get_weights())
 
-episodes = 10000
+episodes = 1000000
 batch_size = 32
 discount_rate = 0.99
 optimizer = keras.optimizers.Adam(learning_rate=0.00025, clipnorm=1.0)
@@ -111,7 +111,7 @@ for episode in range(episodes):
         if done:
             break
         # time.sleep(1)
-    print(f"\rEpisode: {episode+1} / {episodes}, eps: {epsilon:.3f}, reward: {rewards:.2f}, average_reward: {total_reward/(episode+1):.2f}", end="")
+    print(f"\rEpisode: {episode+1} / {episodes}, eps: {epsilon:.3f}, reward: {rewards:.2f}, average_reward: {total_reward/(episode+1):.4f}", end="")
     if ((episode+1) >= (episodes*0.1)):
         training_step(batch_size)
     if ((episode+1) % (episodes*0.05) == 0): 
