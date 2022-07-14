@@ -23,7 +23,7 @@ def nargmax_by_legal_action(array, legal_action):
     mask = np.zeros_like(array)
     for temp in legal_action:
         mask[0][temp] = 1
-    legal_array = [float("-inf") if mask[0][array_index] == 0 else array[0][array_index] for array_index in array[0]]
+    legal_array = [float("-inf") if mask[0][array_index] == 0 else array[0][array_index] for array_index in range(len(array[0]))]
     legal_array = np.reshape(legal_array, [1, -1])
     return np.argmax(legal_array, axis=1) 
 
@@ -89,27 +89,29 @@ main_model = keras.models.Sequential([
 target_model = keras.models.clone_model(main_model)
 target_model.set_weights(main_model.get_weights())
 
-episodes = 100000
+episodes = 10000
 batch_size = 32
 discount_rate = 0.99
 optimizer = keras.optimizers.Adam(learning_rate=0.00025, clipnorm=1.0)
 loss_fn = keras.losses.Huber()
 replay_memory = deque(maxlen=10000000)
 
-rewards = 0
+total_reward = 0
 
 for episode in range(episodes):
     state = env.reset()
     epsilon = max(1 - episode / (episodes*2/3.), 0.001)
+    rewards = 0
     # env.render()
     while True:
         state, reward, done, info = play_one_step(env, state, epsilon)
         rewards += reward
+        total_reward += reward
         # env.render()
         if done:
             break
         # time.sleep(1)
-    print(f"\rEpisode: {episode+1} / {episodes}, eps: {epsilon:.3f}, reward: {rewards:.2f}", end="")
+    print(f"\rEpisode: {episode+1} / {episodes}, eps: {epsilon:.3f}, reward: {rewards:.2f}, average_reward: {total_reward/(episode+1):.2f}", end="")
     if ((episode+1) >= (episodes*0.1)):
         training_step(batch_size)
     if ((episode+1) % (episodes*0.05) == 0): 
@@ -121,11 +123,12 @@ for episode in range(episodes):
         env.render()
 
 now = datetime.now().strftime("%y%m%d_%H%M")
-main_model.save(f"../model/omok/omok_{now}.h5")
+path = f"./model/omok/omok_{now}.h5"
+main_model.save(path)
 
 
 env.reset()
-env.ai_opponent()
+env.ai_opponent(path)
 env.render()
 while True:
     action = input("Type location [EX : (10 H)] : ")
