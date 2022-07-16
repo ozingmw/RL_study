@@ -89,7 +89,7 @@ main_model = keras.models.Sequential([
 target_model = keras.models.clone_model(main_model)
 target_model.set_weights(main_model.get_weights())
 
-episodes = 1000000
+episodes = 100000
 batch_size = 32
 discount_rate = 0.99
 optimizer = keras.optimizers.Adam(learning_rate=0.00025, clipnorm=1.0)
