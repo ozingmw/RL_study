@@ -89,14 +89,18 @@ main_model = keras.models.Sequential([
 target_model = keras.models.clone_model(main_model)
 target_model.set_weights(main_model.get_weights())
 
-episodes = 100000
+now = datetime.now().strftime("%y%m%d_%H%M")
+path = f"./model/omok/omok_{now}.h5"
+
+episodes = 20000
 batch_size = 32
 discount_rate = 0.99
 optimizer = keras.optimizers.Adam(learning_rate=0.00025, clipnorm=1.0)
 loss_fn = keras.losses.Huber()
-replay_memory = deque(maxlen=10000000)
+replay_memory = deque(maxlen=5000000)
 
 total_reward = 0
+prev_average_reward = float("-inf")
 
 for episode in range(episodes):
     state = env.reset()
@@ -111,7 +115,8 @@ for episode in range(episodes):
         if done:
             break
         # time.sleep(1)
-    print(f"\rEpisode: {episode+1} / {episodes}, eps: {epsilon:.3f}, reward: {rewards:.2f}, average_reward: {total_reward/(episode+1):.4f}", end="")
+    now_average_reward = total_reward/(episode+1)
+    print(f"\rEpisode: {episode+1} / {episodes}, eps: {epsilon:.3f}, reward: {rewards:.2f}, average_reward: {now_average_reward:.4f}", end="")
     if ((episode+1) >= (episodes*0.1)):
         training_step(batch_size)
     if ((episode+1) % (episodes*0.05) == 0): 
@@ -121,11 +126,9 @@ for episode in range(episodes):
            target_weights[index] = 0.99 * target_weights[index] + 0.01 * online_weights[index]
         target_model.set_weights(target_weights)
         env.render()
-
-now = datetime.now().strftime("%y%m%d_%H%M")
-path = f"./model/omok/omok_{now}.h5"
-main_model.save(path)
-
+    if prev_average_reward < now_average_reward:
+        main_model.save(path)
+        prev_average_reward = now_average_reward
 
 env.reset()
 env.ai_opponent(path)
