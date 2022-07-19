@@ -81,8 +81,8 @@ input_size = env.board_size
 output_size = env.action_space.n
 
 main_model = keras.models.Sequential([
-    keras.layers.Dense(15*15*15, activation="relu", input_shape=[input_size**2]),
-    keras.layers.Dense(15*15*3, activation="relu"),
+    keras.layers.Dense(9*9*9, activation="relu", input_shape=[input_size**2]),
+    keras.layers.Dense(9*9*2, activation="relu"),
     keras.layers.Dense(output_size),
 ])
 
@@ -92,19 +92,19 @@ target_model.set_weights(main_model.get_weights())
 now = datetime.now().strftime("%y%m%d_%H%M")
 path = f"./model/omok/omok_{now}.h5"
 
-episodes = 20000
+episodes = 100000
 batch_size = 32
 discount_rate = 0.99
 optimizer = keras.optimizers.Adam(learning_rate=0.00025, clipnorm=1.0)
 loss_fn = keras.losses.Huber()
-replay_memory = deque(maxlen=5000000)
+replay_memory = deque(maxlen=1000000)
 
 total_reward = 0
 prev_average_reward = float("-inf")
 
 for episode in range(episodes):
     state = env.reset()
-    epsilon = max(1 - episode / (episodes*2/3.), 0.001)
+    epsilon = max(1 - episode / (episodes*2/3.), 0.01)
     rewards = 0
     # env.render()
     while True:
@@ -119,6 +119,9 @@ for episode in range(episodes):
     print(f"\rEpisode: {episode+1} / {episodes}, eps: {epsilon:.3f}, reward: {rewards:.2f}, average_reward: {now_average_reward:.4f}", end="")
     if ((episode+1) >= (episodes*0.1)):
         training_step(batch_size)
+        if prev_average_reward < now_average_reward:
+            main_model.save(path)
+            prev_average_reward = now_average_reward
     if ((episode+1) % (episodes*0.05) == 0): 
         target_weights = target_model.get_weights()
         online_weights = main_model.get_weights()
@@ -126,9 +129,6 @@ for episode in range(episodes):
            target_weights[index] = 0.99 * target_weights[index] + 0.01 * online_weights[index]
         target_model.set_weights(target_weights)
         env.render()
-    if prev_average_reward < now_average_reward:
-        main_model.save(path)
-        prev_average_reward = now_average_reward
 
 env.reset()
 env.ai_opponent(path)
