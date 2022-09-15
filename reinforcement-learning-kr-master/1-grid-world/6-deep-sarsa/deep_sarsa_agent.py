@@ -7,7 +7,7 @@ from keras.layers import Dense
 from keras.optimizers import Adam
 from keras.models import Sequential
 
-EPISODES = 1000
+EPISODES = 500
 
 
 # 그리드월드 예제에서의 딥살사 에이전트
@@ -29,7 +29,7 @@ class DeepSARSAgent:
 
         if self.load_model:
             self.epsilon = 0.05
-            self.model.load_weights('./save_model/deep_sarsa_trained.h5')
+            self.model.load_weights('reinforcement-learning-kr-master/1-grid-world/6-deep-sarsa/save_model/deep_sarsa_trained.h5')
 
     # 상태가 입력 큐함수가 출력인 인공신경망 생성
     def build_model(self):
@@ -38,7 +38,7 @@ class DeepSARSAgent:
         model.add(Dense(30, activation='relu'))
         model.add(Dense(self.action_size, activation='linear'))
         model.summary()
-        model.compile(loss='mse', optimizer=Adam(lr=self.learning_rate))
+        model.compile(loss='mse', optimizer=Adam(learning_rate=self.learning_rate))
         return model
 
     # 입실론 탐욕 방법으로 행동 선택
@@ -49,7 +49,7 @@ class DeepSARSAgent:
         else:
             # 모델로부터 행동 산출
             state = np.float32(state)
-            q_values = self.model.predict(state)
+            q_values = self.model.predict(state, verbose=0)
             return np.argmax(q_values[0])
 
     def train_model(self, state, action, reward, next_state, next_action, done):
@@ -58,13 +58,12 @@ class DeepSARSAgent:
 
         state = np.float32(state)
         next_state = np.float32(next_state)
-        target = self.model.predict(state)[0]
+        target = self.model.predict(state, verbose=0)[0]
         # 살사의 큐함수 업데이트 식
         if done:
             target[action] = reward
         else:
-            target[action] = (reward + self.discount_factor *
-                              self.model.predict(next_state)[0][next_action])
+            target[action] = (reward + self.discount_factor * self.model.predict(next_state, verbose=0)[0][next_action])
 
         # 출력 값 reshape
         target = np.reshape(target, [1, 5])
@@ -97,8 +96,7 @@ if __name__ == "__main__":
             next_state = np.reshape(next_state, [1, 15])
             next_action = agent.get_action(next_state)
             # 샘플로 모델 학습
-            agent.train_model(state, action, reward, next_state, next_action,
-                              done)
+            agent.train_model(state, action, reward, next_state, next_action, done)
             state = next_state
             score += reward
 
@@ -109,10 +107,9 @@ if __name__ == "__main__":
                 scores.append(score)
                 episodes.append(e)
                 pylab.plot(episodes, scores, 'b')
-                pylab.savefig("./save_graph/deep_sarsa_.png")
-                print("episode:", e, "  score:", score, "global_step",
-                      global_step, "  epsilon:", agent.epsilon)
+                pylab.savefig("reinforcement-learning-kr-master/1-grid-world/6-deep-sarsa/save_graph/deep_sarsa_.png")
+                print("episode:", e, "  score:", score, "global_step", global_step, "  epsilon:", agent.epsilon)
 
         # 100 에피소드마다 모델 저장
         if e % 100 == 0:
-            agent.model.save_weights("./save_model/deep_sarsa.h5")
+            agent.model.save_weights("reinforcement-learning-kr-master/1-grid-world/6-deep-sarsa/save_model/deep_sarsa.h5")

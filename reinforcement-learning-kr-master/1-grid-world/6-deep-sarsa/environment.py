@@ -3,6 +3,8 @@ import numpy as np
 import tkinter as tk
 from PIL import ImageTk, Image
 
+import os
+
 PhotoImage = ImageTk.PhotoImage
 UNIT = 50  # 픽셀 수
 HEIGHT = 5  # 그리드 세로
@@ -54,11 +56,11 @@ class Env(tk.Tk):
 
     def load_images(self):
         rectangle = PhotoImage(
-            Image.open("../img/rectangle.png").resize((30, 30)))
+            Image.open("reinforcement-learning-kr-master/1-grid-world/img/rectangle.png").resize((30, 30)))
         triangle = PhotoImage(
-            Image.open("../img/triangle.png").resize((30, 30)))
+            Image.open("reinforcement-learning-kr-master/1-grid-world/img/triangle.png").resize((30, 30)))
         circle = PhotoImage(
-            Image.open("../img/circle.png").resize((30, 30)))
+            Image.open("reinforcement-learning-kr-master/1-grid-world/img/circle.png").resize((30, 30)))
 
         return rectangle, triangle, circle
 
