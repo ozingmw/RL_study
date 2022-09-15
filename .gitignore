@@ -3,4 +3,9 @@ model/*
 test.py
 
 Omok/gym_omok/*
-reinforcement-learning-kr-master/*
+
+LICENSE
+*.h5
+*.png
+__pycache__
+.python-version
