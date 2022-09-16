@@ -7,6 +7,8 @@ from keras.layers import Dense
 from keras.optimizers import Adam
 from keras.models import Sequential
 
+import tensorflow as tf
+
 EPISODES = 500
 
 
@@ -27,6 +29,8 @@ class DeepSARSAgent:
         self.epsilon_min = 0.01
         self.model = self.build_model()
 
+        self.optimizer = Adam(learning_rate=self.learning_rate)
+
         if self.load_model:
             self.epsilon = 0.05
             self.model.load_weights('reinforcement-learning-kr-master/1-grid-world/6-deep-sarsa/save_model/deep_sarsa_trained.h5')
@@ -38,7 +42,7 @@ class DeepSARSAgent:
         model.add(Dense(30, activation='relu'))
         model.add(Dense(self.action_size, activation='linear'))
         model.summary()
-        model.compile(loss='mse', optimizer=Adam(learning_rate=self.learning_rate))
+        # model.compile(loss='mse', optimizer=Adam(learning_rate=self.learning_rate))
         return model
 
     # 입실론 탐욕 방법으로 행동 선택
@@ -58,17 +62,24 @@ class DeepSARSAgent:
 
         state = np.float32(state)
         next_state = np.float32(next_state)
-        target = self.model.predict(state, verbose=0)[0]
-        # 살사의 큐함수 업데이트 식
-        if done:
-            target[action] = reward
-        else:
-            target[action] = (reward + self.discount_factor * self.model.predict(next_state, verbose=0)[0][next_action])
+        # target = self.model.predict(state, verbose=0)[0]
+        # # 살사의 큐함수 업데이트 식
+        # if done:
+        #     target[action] = reward
+        # else:
+        #     target[action] = (reward + self.discount_factor * self.model.predict(next_state, verbose=0)[0][next_action])
 
-        # 출력 값 reshape
-        target = np.reshape(target, [1, 5])
-        # 인공신경망 업데이트
-        self.model.fit(state, target, epochs=1, verbose=0)
+        # # 출력 값 reshape
+        # target = np.reshape(target, [1, 5])
+        # # 인공신경망 업데이트
+        # self.model.fit(state, target, epochs=1, verbose=0)
+
+        with tf.GradientTape() as tape:
+            predict = self.model.predict(state, verbose=0)[0]
+            target = reward + (1-done) * (self.discount_factor * self.model.predict(next_state, verbose=0)[0][next_action])
+            loss = tf.reduce_mean(tf.square(target - predict))
+        grads = tape.gradient(loss, self.model.trainable_variables)
+        self.optimizer.apply_gradients(zip(grads, self.model.trainable_variables))
 
 
 if __name__ == "__main__":
@@ -108,7 +119,7 @@ if __name__ == "__main__":
                 episodes.append(e)
                 pylab.plot(episodes, scores, 'b')
                 pylab.savefig("reinforcement-learning-kr-master/1-grid-world/6-deep-sarsa/save_graph/deep_sarsa_.png")
-                print("episode:", e, "  score:", score, "global_step", global_step, "  epsilon:", agent.epsilon)
+                print(f"episode: {e}, score: {score}, global_step: {global_step}, epsilon: {agent.epsilon:.3f}")
 
         # 100 에피소드마다 모델 저장
         if e % 100 == 0:
