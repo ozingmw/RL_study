@@ -49,10 +49,8 @@ class ReinforceAgent:
         
         # 정책신경망을 업데이트하는 훈련함수 생성
         optimizer = Adam(lr=self.learning_rate)
-        updates = optimizer.get_updates(self.model.trainable_weights,[],
-                                        loss)
-        train = K.function([self.model.input, action, discounted_rewards], [],
-                           updates=updates)
+        updates = optimizer.get_updates(self.model.trainable_weights,[], loss)
+        train = K.function([self.model.input, action, discounted_rewards], [], updates=updates)
 
         return train
 
@@ -121,8 +119,7 @@ if __name__ == "__main__":
                 scores.append(score)
                 episodes.append(e)
                 score = round(score,2)
-                print("episode:", e, "  score:", score, "  time_step:",
-                      global_step)
+                print("episode:", e, "  score:", score, "  time_step:", global_step)
 
         # 100 에피소드마다 학습 결과 출력 및 모델 저장
         if e % 100 == 0:

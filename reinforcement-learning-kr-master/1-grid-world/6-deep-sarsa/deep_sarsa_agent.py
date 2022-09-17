@@ -55,13 +55,11 @@ class DeepSARSAgent:
             state = np.float32(state)
             q_values = self.model.predict(state, verbose=0)
             return np.argmax(q_values[0])
-
+            
     def train_model(self, state, action, reward, next_state, next_action, done):
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
-        state = np.float32(state)
-        next_state = np.float32(next_state)
         # target = self.model.predict(state, verbose=0)[0]
         # # 살사의 큐함수 업데이트 식
         # if done:
@@ -73,14 +71,15 @@ class DeepSARSAgent:
         # target = np.reshape(target, [1, 5])
         # # 인공신경망 업데이트
         # self.model.fit(state, target, epochs=1, verbose=0)
-
+        
         with tf.GradientTape() as tape:
-            predict = self.model.predict(state, verbose=0)[0]
+            predict = self.model(state)[0]
+            mask = tf.one_hot([action], self.action_size)
+            predict = tf.reduce_sum(predict * mask, axis=1)
             target = reward + (1-done) * (self.discount_factor * self.model.predict(next_state, verbose=0)[0][next_action])
             loss = tf.reduce_mean(tf.square(target - predict))
         grads = tape.gradient(loss, self.model.trainable_variables)
         self.optimizer.apply_gradients(zip(grads, self.model.trainable_variables))
-
 
 if __name__ == "__main__":
     # 환경과 에이전트 생성
