@@ -14,8 +14,8 @@ EPISODES = 300
 # 카트폴 예제에서의 DQN 에이전트
 class DQNAgent:
     def __init__(self, state_size, action_size):
-        self.render = False
-        self.load_model = False
+        self.render = True
+        self.load_model = True
 
         # 상태와 행동의 크기 정의
         self.state_size = state_size
@@ -24,7 +24,7 @@ class DQNAgent:
         # DQN 하이퍼파라미터
         self.discount_factor = 0.99
         self.learning_rate = 0.001
-        self.epsilon = 1.0
+        self.epsilon = .0
         self.epsilon_decay = 0.999
         self.epsilon_min = 0.01
         self.batch_size = 64
@@ -41,19 +41,16 @@ class DQNAgent:
         self.update_target_model()
 
         if self.load_model:
-            self.model.load_weights("./save_model/cartpole_dqn_trained.h5")
+            self.model.load_weights("reinforcement-learning-kr-master/2-cartpole/1-dqn/save_model/cartpole_dqn_trained.h5")
 
     # 상태가 입력, 큐함수가 출력인 인공신경망 생성
     def build_model(self):
         model = Sequential()
-        model.add(Dense(24, input_dim=self.state_size, activation='relu',
-                        kernel_initializer='he_uniform'))
-        model.add(Dense(24, activation='relu',
-                        kernel_initializer='he_uniform'))
-        model.add(Dense(self.action_size, activation='linear',
-                        kernel_initializer='he_uniform'))
+        model.add(Dense(24, input_dim=self.state_size, activation='relu', kernel_initializer='he_uniform'))
+        model.add(Dense(24, activation='relu', kernel_initializer='he_uniform'))
+        model.add(Dense(self.action_size, activation='linear', kernel_initializer='he_uniform'))
         model.summary()
-        model.compile(loss='mse', optimizer=Adam(lr=self.learning_rate))
+        model.compile(loss='mse', optimizer=Adam(learning_rate=self.learning_rate))
         return model
 
     # 타깃 모델을 모델의 가중치로 업데이트
@@ -65,7 +62,7 @@ class DQNAgent:
         if np.random.rand() <= self.epsilon:
             return random.randrange(self.action_size)
         else:
-            q_value = self.model.predict(state)
+            q_value = self.model.predict(state, verbose=0)
             return np.argmax(q_value[0])
 
     # 샘플 <s, a, r, s'>을 리플레이 메모리에 저장
@@ -93,19 +90,14 @@ class DQNAgent:
 
         # 현재 상태에 대한 모델의 큐함수
         # 다음 상태에 대한 타깃 모델의 큐함수
-        target = self.model.predict(states)
-        target_val = self.target_model.predict(next_states)
+        target = self.model.predict(states, verbose=0)
+        target_val = self.target_model.predict(next_states, verbose=0)
 
         # 벨만 최적 방정식을 이용한 업데이트 타깃
         for i in range(self.batch_size):
-            if dones[i]:
-                target[i][actions[i]] = rewards[i]
-            else:
-                target[i][actions[i]] = rewards[i] + self.discount_factor * (
-                    np.amax(target_val[i]))
+            target[i][actions[i]] = rewards[i] + (1-dones[i]) * self.discount_factor * (np.amax(target_val[i]))
 
-        self.model.fit(states, target, batch_size=self.batch_size,
-                       epochs=1, verbose=0)
+        self.model.fit(states, target, batch_size=self.batch_size, epochs=1, verbose=0)
 
 
 if __name__ == "__main__":
@@ -156,11 +148,10 @@ if __name__ == "__main__":
                 scores.append(score)
                 episodes.append(e)
                 pylab.plot(episodes, scores, 'b')
-                pylab.savefig("./save_graph/cartpole_dqn.png")
-                print("episode:", e, "  score:", score, "  memory length:",
-                      len(agent.memory), "  epsilon:", agent.epsilon)
+                pylab.savefig("reinforcement-learning-kr-master/2-cartpole/1-dqn/save_graph/cartpole_dqn.png")
+                print("episode:", e, "  score:", score, "  memory length:", len(agent.memory), "  epsilon:", agent.epsilon)
 
                 # 이전 10개 에피소드의 점수 평균이 490보다 크면 학습 중단
                 if np.mean(scores[-min(10, len(scores)):]) > 490:
-                    agent.model.save_weights("./save_model/cartpole_dqn.h5")
+                    agent.model.save_weights("reinforcement-learning-kr-master/2-cartpole/1-dqn/save_model/cartpole_dqn.h5")
                     sys.exit()

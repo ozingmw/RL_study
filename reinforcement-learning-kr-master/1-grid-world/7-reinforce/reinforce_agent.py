@@ -5,9 +5,10 @@ from environment import Env
 from keras.layers import Dense
 from keras.optimizers import Adam
 from keras.models import Sequential
-from keras import backend as K
 
-EPISODES = 2500
+import tensorflow as tf
+
+EPISODES = 500
 
 # 그리드월드 예제에서의 REINFORCE 에이전트
 class ReinforceAgent:
@@ -22,11 +23,11 @@ class ReinforceAgent:
         self.learning_rate = 0.001
 
         self.model = self.build_model()
-        self.optimizer = self.optimizer()
+        self.optimizer = Adam(learning_rate=self.learning_rate)
         self.states, self.actions, self.rewards = [], [], []
 
         if self.load_model:
-            self.model.load_weights('./save_model/reinforce_trained.h5')
+            self.model.load_weights('reinforcement-learning-kr-master/1-grid-world/7-reinforce/save_model/reinforce_trained.h5')
     
     # 상태가 입력, 각 행동의 확률이 출력인 인공신경망 생성
     def build_model(self):
@@ -38,25 +39,25 @@ class ReinforceAgent:
         return model
     
     # 정책신경망을 업데이트 하기 위한 오류함수와 훈련함수의 생성
-    def optimizer(self):
-        action = K.placeholder(shape=[None, 5])
-        discounted_rewards = K.placeholder(shape=[None, ])
+    # def optimizer(self):
+    #     action = K.placeholder(shape=[None, 5])
+    #     discounted_rewards = K.placeholder(shape=[None, ])
         
-        # 크로스 엔트로피 오류함수 계산
-        action_prob = K.sum(action * self.model.output, axis=1)
-        cross_entropy = K.log(action_prob) * discounted_rewards
-        loss = -K.sum(cross_entropy)
+    #     # 크로스 엔트로피 오류함수 계산
+    #     action_prob = K.sum(action * self.model.output, axis=1)
+    #     cross_entropy = K.log(action_prob) * discounted_rewards
+    #     loss = -K.sum(cross_entropy)
         
-        # 정책신경망을 업데이트하는 훈련함수 생성
-        optimizer = Adam(lr=self.learning_rate)
-        updates = optimizer.get_updates(self.model.trainable_weights,[], loss)
-        train = K.function([self.model.input, action, discounted_rewards], [], updates=updates)
+    #     # 정책신경망을 업데이트하는 훈련함수 생성
+    #     optimizer = Adam(lr=self.learning_rate)
+    #     updates = optimizer.get_updates(self.model.trainable_weights,[], loss)
+    #     train = K.function([self.model.input, action, discounted_rewards], [], updates=updates)
 
-        return train
+    #     return train
 
     # 정책신경망으로 행동 선택
     def get_action(self, state):
-        policy = self.model.predict(state)[0]
+        policy = self.model.predict(state, verbose=0)[0]
         return np.random.choice(self.action_size, 1, p=policy)[0]
     
     # 반환값 계산
@@ -82,9 +83,16 @@ class ReinforceAgent:
         discounted_rewards -= np.mean(discounted_rewards)
         discounted_rewards /= np.std(discounted_rewards)
 
-        self.optimizer([self.states, self.actions, discounted_rewards])
+        with tf.GradientTape() as tape:
+            policies = self.model(tf.convert_to_tensor(self.states))
+            action_probs = tf.reduce_sum(self.actions * policies, axis=1)
+            loss = tf.reduce_sum(-tf.math.log(action_probs + 1e-5) * discounted_rewards)
+        grads = tape.gradient(loss, self.model.trainable_variables)
+        self.optimizer.apply_gradients(zip(grads, self.model.trainable_variables))
+
         self.states, self.actions, self.rewards = [], [], []
 
+        return -policies * tf.math.log(policies)
 
 if __name__ == "__main__":
     # 환경과 에이전트의 생성
@@ -124,5 +132,5 @@ if __name__ == "__main__":
         # 100 에피소드마다 학습 결과 출력 및 모델 저장
         if e % 100 == 0:
             pylab.plot(episodes, scores, 'b')
-            pylab.savefig("./save_graph/reinforce.png")
-            agent.model.save_weights("./save_model/reinforce.h5")
+            pylab.savefig("reinforcement-learning-kr-master/1-grid-world/7-reinforce/save_graph/reinforce.png")
+            agent.model.save_weights("reinforcement-learning-kr-master/1-grid-world/7-reinforce/save_model/reinforce.h5")
