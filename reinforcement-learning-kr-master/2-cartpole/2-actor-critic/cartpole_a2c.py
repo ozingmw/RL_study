@@ -27,13 +27,13 @@ class A2CAgent:
         self.critic_lr = 0.005
 
         # 정책신경망과 가치신경망 생성
-        # self.actor = self.build_actor()
-        # self.critic = self.build_critic()
-        # self.actor_optimizer = Adam(learning_rate=self.actor_lr, clipnorm=5.0)
-        # self.critic_optimizer = Adam(learning_rate=self.critic_lr, clipnorm=5.0)
+        self.actor = self.build_actor()
+        self.critic = self.build_critic()
+        self.actor_optimizer = Adam(learning_rate=self.actor_lr, clipnorm=5.0)
+        self.critic_optimizer = Adam(learning_rate=self.critic_lr, clipnorm=5.0)
 
-        self.model = self.build_actor_critic()
-        self.optimizer = Adam(learning_rate=1e-3, clipnorm=5.0)
+        # self.model = self.build_actor_critic()
+        # self.optimizer = Adam(learning_rate=1e-3, clipnorm=5.0)
 
         if self.load_model:
             self.actor.load_weights("reinforcement-learning-kr-master/2-cartpole/2-actor-critic/save_model/cartpole_actor_trained.h5")
@@ -42,7 +42,7 @@ class A2CAgent:
     # actor: 상태를 받아 각 행동의 확률을 계산
     def build_actor(self):
         actor = Sequential()
-        actor.add(Dense(24, input_dim=self.state_size, activation='relu', kernel_initializer='he_uniform'))
+        actor.add(Dense(24, input_dim=self.state_size, activation='tanh', kernel_initializer='he_uniform'))
         actor.add(Dense(self.action_size, activation='softmax', kernel_initializer='he_uniform'))
         actor.summary()
         # actor.compile(loss='binary_cross_entropy', optimizer=self.actor_updater)
@@ -58,24 +58,24 @@ class A2CAgent:
         # critic.compile(loss='mse', optimizer=self.critic_updater)
         return critic
 
-    def build_actor_critic(self):
-        input = tf.keras.Input(shape=(self.state_size,))
-        x = tf.keras.layers.Dense(24, input_dim=self.state_size, activation='relu', kernel_initializer='he_uniform')(input)
-        actor = tf.keras.layers.Dense(self.action_size, activation='softmax', kernel_initializer='he_uniform')(x)
-        critic = tf.keras.layers.Dense(24, activation='relu', kernel_initializer='he_uniform')(x)
-        critic = tf.keras.layers.Dense(self.value_size, activation='linear', kernel_initializer='he_uniform')(critic)
+    # def build_actor_critic(self):
+    #     input = tf.keras.Input(shape=(self.state_size,))
+    #     x = tf.keras.layers.Dense(24, input_dim=self.state_size, activation='relu', kernel_initializer='he_uniform')(input)
+    #     actor = tf.keras.layers.Dense(self.action_size, activation='softmax', kernel_initializer='he_uniform')(x)
+    #     critic = tf.keras.layers.Dense(24, activation='relu', kernel_initializer='he_uniform')(x)
+    #     critic = tf.keras.layers.Dense(self.value_size, activation='linear', kernel_initializer='he_uniform')(critic)
 
-        model = tf.keras.Model(inputs=input, outputs=[actor, critic])
-        model.summary()
+    #     model = tf.keras.Model(inputs=input, outputs=[actor, critic])
+    #     model.summary()
 
-        return model
+    #     return model
 
 
     # 정책신경망의 출력을 받아 확률적으로 행동을 선택
     def get_action(self, state):
-        # policy = self.actor.predict(state, verbose=0)[0]
-        policy, _ = self.model.predict(state, verbose=0)
-        return np.random.choice(self.action_size, 1, p=policy[0])[0]
+        policy = self.actor.predict(state, verbose=0)[0]
+        # policy, _ = self.model.predict(state, verbose=0)
+        return np.random.choice(self.action_size, 1, p=policy)[0]
 
     # 정책신경망을 업데이트하는 함수
     # def actor_optimizer(self):
@@ -105,37 +105,37 @@ class A2CAgent:
 
     # 각 타임스텝마다 정책신경망과 가치신경망을 업데이트
     def train_model(self, state, action, reward, next_state, done):
-        # with tf.GradientTape() as tape1:
-        #     value = self.critic(state)[0]
-        #     next_value = self.critic(next_state)[0]
-        #     target = reward + (1-done) * self.discount_factor * next_value
-        #     critic_loss = tf.reduce_mean(tf.square(target - value))
-        # grads = tape1.gradient(critic_loss, self.critic.trainable_variables)
-        # self.critic_optimizer.apply_gradients(zip(grads, self.critic.trainable_variables))
+        with tf.GradientTape() as tape1:
+            value = self.critic(state)[0]
+            next_value = self.critic(next_state)[0]
+            target = reward + (1-done) * self.discount_factor * next_value
+            critic_loss = tf.reduce_mean(tf.square(target - value))
+        grads = tape1.gradient(critic_loss, self.critic.trainable_variables)
+        self.critic_optimizer.apply_gradients(zip(grads, self.critic.trainable_variables))
 
-        # with tf.GradientTape() as tape2:
-        #     policy = self.actor(state)[0]
-        #     mask = tf.one_hot([action], self.action_size)
-        #     action_prob = tf.reduce_sum(policy * mask, axis=1)
-        #     advantage = target - value
-        #     actor_loss = -tf.reduce_mean(tf.math.log(action_prob + 1e-5) * advantage)
-        # grads = tape2.gradient(actor_loss, self.actor.trainable_variables)
-        # self.actor_optimizer.apply_gradients(zip(grads, self.actor.trainable_variables))
-
-        with tf.GradientTape() as tape:
-            policy, value = self.model(state)
-            _, next_value = self.model(next_state)
-            target = reward + (1-done) * self.discount_factor * next_value[0]
-            critic_loss = tf.reduce_mean(0.5 * tf.square(target - value[0]))
+        with tf.GradientTape() as tape2:
+            policy = self.actor(state)[0]
             mask = tf.one_hot([action], self.action_size)
-            action_prob = tf.reduce_sum(policy[0] * mask, axis=1)
-            advantage = target - value[0]
-            actor_loss = -tf.reduce_mean(tf.math.log(action_prob + 1e-5) * advantage)
+            action_prob = tf.reduce_sum(policy * mask, axis=1)
+            advantage = target - value
+            actor_loss = tf.reduce_mean(-tf.math.log(action_prob + 1e-5) * advantage)
+        grads = tape2.gradient(actor_loss, self.actor.trainable_variables)
+        self.actor_optimizer.apply_gradients(zip(grads, self.actor.trainable_variables))
 
-            loss = 0.2 * actor_loss + critic_loss
+        # with tf.GradientTape() as tape:
+        #     policy, value = self.model(state)
+        #     _, next_value = self.model(next_state)
+        #     target = reward + (1-done) * self.discount_factor * next_value[0]
+        #     critic_loss = tf.reduce_mean(0.5 * tf.square(target - value[0]))
+        #     mask = tf.one_hot([action], self.action_size)
+        #     action_prob = tf.reduce_sum(policy[0] * mask, axis=1)
+        #     advantage = target - value[0]
+        #     actor_loss = -tf.reduce_mean(tf.math.log(action_prob + 1e-5) * advantage)
+
+        #     loss = 0.2 * actor_loss + critic_loss
         
-        grads = tape.gradient(loss, self.model.trainable_variables)
-        self.optimizer.apply_gradients(zip(grads, self.model.trainable_variables))
+        # grads = tape.gradient(loss, self.model.trainable_variables)
+        # self.optimizer.apply_gradients(zip(grads, self.model.trainable_variables))
 
 
 
