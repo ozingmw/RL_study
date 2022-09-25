@@ -9,6 +9,10 @@ import keras
 import keras.layers
 import keras.optimizers
 
+from gym.wrappers.gray_scale_observation import GrayScaleObservation
+from gym.wrappers.resize_observation import ResizeObservation
+from gym.wrappers.atari_preprocessing import AtariPreprocessing
+
 from skimage.color import rgb2gray
 from skimage.transform import resize
 
@@ -104,7 +108,7 @@ class Runner(threading.Thread):
 
         # 환경, 로컬신경망, 텐서보드 생성
         self.local_model = ActorCritic(action_size, state_size)
-        self.env = gym.make(env_name)
+        self.env = GrayScaleObservation(gym.make(env_name))
         self.writer = writer
 
         # 학습 정보를 기록할 변수
@@ -115,6 +119,8 @@ class Runner(threading.Thread):
         self.t = 0
         # 불필요한 행동을 줄여주기 위한 dictionary
         self.action_dict = {0:1, 1:2, 2:3, 3:3}
+
+        self.agent_waiting = 20
 
     # # 텐서보드에 학습 정보를 기록
     # def draw_tensorboard(self, score, step, e):
@@ -213,8 +219,6 @@ class Runner(threading.Thread):
         # 액터러너끼리 공유해야하는 글로벌 변수
         global episode, score_avg, score_max
 
-        env_waiting = 20
-
         step = 0
         while episode < num_episode:
             done = False
@@ -224,7 +228,7 @@ class Runner(threading.Thread):
             observe = self.env.reset()
 
             # 랜덤으로 뽑힌 값 만큼의 프레임동안 움직이지 않음
-            for _ in range(random.randint(1, env_waiting)):
+            for _ in range(random.randint(1, self.agent_waiting)):
                 observe, _, _, _ = self.env.step(1)
 
             # 프레임을 전처리 한 후 4개의 상태를 쌓아서 입력값으로 사용.
