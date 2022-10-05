@@ -11,10 +11,10 @@ import keras.optimizers
 
 from gym.wrappers.gray_scale_observation import GrayScaleObservation
 from gym.wrappers.resize_observation import ResizeObservation
-from gym.wrappers.atari_preprocessing import AtariPreprocessing
+# from gym.wrappers.atari_preprocessing import AtariPreprocessing
 
-from skimage.color import rgb2gray
-from skimage.transform import resize
+# from skimage.color import rgb2gray
+# from skimage.transform import resize
 
 # 멀티쓰레딩을 위한 글로벌 변수
 global episode, score_avg, score_max
@@ -33,7 +33,7 @@ class ActorCritic(tf.keras.Model):
         self.flatten = keras.layers.Flatten()
         self.shared_fc = keras.layers.Dense(512, activation='relu')
 
-        self.policy = keras.layers.Dense(action_size, activation='linear')
+        self.policy = keras.layers.Dense(action_size, activation='softmax')
         self.value = keras.layers.Dense(1, activation='linear')
 
     def call(self, x):
@@ -63,10 +63,11 @@ class A3CAgent():
         # 글로벌 인공신경망 생성
         self.global_model = ActorCritic(self.action_size, self.state_size)
         # 인공신경망 업데이트하는 옵티마이저 함수 생성
-        self.optimizer = keras.optimizers.Adam(self.lr, use_locking=True)
+        self.optimizer = keras.optimizers.Adam(self.lr)
 
         # 텐서보드 설정
         # self.writer = tf.summary.create_file_writer('summary/breakout_a3c')
+        self.writer = None
         # 학습된 글로벌신경망 모델을 저장할 경로 설정
         self.model_path = os.path.join(os.getcwd(), 'save_model')
 
@@ -108,7 +109,8 @@ class Runner(threading.Thread):
 
         # 환경, 로컬신경망, 텐서보드 생성
         self.local_model = ActorCritic(action_size, state_size)
-        self.env = GrayScaleObservation(gym.make(env_name))
+        self.env = GrayScaleObservation(gym.make(env_name), keep_dim=True)
+        self.env = ResizeObservation(self.env, 84)
         self.writer = writer
 
         # 학습 정보를 기록할 변수
@@ -134,7 +136,11 @@ class Runner(threading.Thread):
     def get_action(self, history):
         history = np.float32(history / 255.)
         policy = self.local_model(history)[0][0]
-        policy = tf.nn.softmax(policy)
+        policy = np.array(policy)
+        policy = np.round(policy, 6)
+        # policy = tf.nn.softmax(policy)
+        # error = 1 - sum(policy)
+        # policy[policy.index(max(policy))] = max(policy) + error
         action_index = np.random.choice(self.action_size, 1, p=policy)[0]
         return action_index, policy
 
@@ -165,8 +171,7 @@ class Runner(threading.Thread):
     def compute_loss(self, done):
 
         discounted_prediction = self.discounted_prediction(self.rewards, done)
-        discounted_prediction = tf.convert_to_tensor(discounted_prediction[:, None],
-                                                     dtype=tf.float32)
+        discounted_prediction = tf.convert_to_tensor(discounted_prediction[:, None], dtype=tf.float32)
 
         states = np.zeros((len(self.states), 84, 84, 4))
 
@@ -232,7 +237,8 @@ class Runner(threading.Thread):
                 observe, _, _, _ = self.env.step(1)
 
             # 프레임을 전처리 한 후 4개의 상태를 쌓아서 입력값으로 사용.
-            state = pre_processing(observe)
+            # state = pre_processing(observe)
+            state = observe
             history = np.stack([state, state, state, state], axis=2)
             history = np.reshape([history], (1, 84, 84, 4))
 
@@ -252,16 +258,17 @@ class Runner(threading.Thread):
                 observe, reward, done, info = self.env.step(real_action)
 
                 # 각 타임스텝마다 상태 전처리
-                next_state = pre_processing(observe)
+                # next_state = pre_processing(observe)
+                next_state = observe
                 next_state = np.reshape([next_state], (1, 84, 84, 1))
                 next_history = np.append(next_state, history[:, :, :, :3], axis=3)
 
                 # 정책확률의 최대값
-                self.avg_p_max += np.amax(policy.numpy())
+                self.avg_p_max += np.amax(policy)
 
-                if start_life > info['ale.lives']:
+                if start_life > info['lives']:
                     dead = True
-                    start_life = info['ale.lives']
+                    start_life = info['lives']
 
                 score += reward
                 reward = np.clip(reward, -1., 1.)
@@ -270,8 +277,7 @@ class Runner(threading.Thread):
                 self.append_sample(history, action, reward)
 
                 if dead:
-                    history = np.stack((next_state, next_state,
-                                        next_state, next_state), axis=2)
+                    history = np.stack((next_state, next_state, next_state, next_state), axis=2)
                     history = np.reshape([history], (1, 84, 84, 4))
                 else:
                     history = next_history
@@ -292,17 +298,17 @@ class Runner(threading.Thread):
                     log += "score avg : {:.3f}".format(score_avg)
                     print(log)
 
-                    self.draw_tensorboard(score, step, episode)
+                    # self.draw_tensorboard(score, step, episode)
 
                     self.avg_p_max = 0
                     step = 0
 
 
 # 학습속도를 높이기 위해 흑백화면으로 전처리
-def pre_processing(observe):
-    processed_observe = np.uint8(
-        resize(rgb2gray(observe), (84, 84), mode='constant') * 255)
-    return processed_observe
+# def pre_processing(observe):
+#     processed_observe = np.uint8(
+#         resize(rgb2gray(observe), (84, 84), mode='constant') * 255)
+#     return processed_observe
 
 
 if __name__ == "__main__":
