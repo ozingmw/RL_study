@@ -77,7 +77,8 @@ class Runner(threading.Thread):
         action = np.random.choice(self.action_size, 1, p=policy)[0]
         return action
 
-    def train_model(self, )
+    def train_model(self, ):
+        pass
 
     def run(self):
         global episode

@@ -9,3 +9,6 @@ LICENSE
 *.png
 __pycache__
 .python-version
+
+checkpoint
+save_model*
