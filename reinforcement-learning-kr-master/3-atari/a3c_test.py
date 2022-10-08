@@ -164,6 +164,7 @@ class Runner(threading.Thread):
             history = np.reshape([history], (1, 84, 84, 4))
 
             while True:
+                # self.env.render(mode="rgb_array")
                 self.t += 1
                 
                 action = self.get_action(history)
