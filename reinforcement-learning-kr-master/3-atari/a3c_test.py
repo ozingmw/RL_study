@@ -174,7 +174,7 @@ class Runner(threading.Thread):
                 real_action = action + 1 if action != 0 else action
                 if dead:
                     action, dead = 1, False
-
+                
                 obs, reward, done, info = self.env.step(real_action)
 
                 next_state = obs
