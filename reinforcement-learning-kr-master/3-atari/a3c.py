@@ -38,7 +38,7 @@ class A3CAgent():
         self.threads = 16
         
         self.global_model = A3C_model(self.action_size, self.state_size)
-        self.optimizer = keras.optimizers.Adam(learning_rate=self.lr, clipnorm=40.)
+        self.optimizer = keras.optimizers.Adam(learning_rate=self.lr, clipnorm=5.)
         # set actor/critic optimizer
 
         # self.model_path = os.path.join(os.getcwd(), 'save_model')
