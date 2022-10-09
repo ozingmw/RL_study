@@ -14,10 +14,14 @@ from gym.wrappers.resize_observation import ResizeObservation
 
 def A3C_model(action_size, state_size):
     input = keras.layers.Input(shape=state_size)
-    conv1 = keras.layers.Conv2D(32, 8, 4, activation='relu')(input)
-    conv2 = keras.layers.Conv2D(64, 4, 2, activation='relu')(conv1)
-    conv3 = keras.layers.Conv2D(64, 3, 1, activation='relu')(conv2)
-    flatten = keras.layers.Flatten()(conv3)
+    conv1 = keras.layers.Conv2D(32, 5, activation='relu')(input)
+    maxpooling1 = keras.layers.MaxPooling2D(2)(conv1)
+    conv2 = keras.layers.Conv2D(32, 5, activation='relu')(maxpooling1)
+    maxpooling2 = keras.layers.MaxPooling2D(2)(conv2)
+    conv3 = keras.layers.Conv2D(64, 4, activation='relu')(maxpooling2)
+    maxpooling3 = keras.layers.MaxPooling2D(2)(conv3)
+    conv4 = keras.layers.Conv2D(64, 3, activation='relu')(maxpooling3)
+    flatten = keras.layers.Flatten()(conv4)
     shared_fc = keras.layers.Dense(512, activation='relu', kernel_initializer='he_normal')(flatten)
 
     policy = keras.layers.Dense(action_size, activation='softmax', kernel_initializer='he_normal')(shared_fc)
@@ -34,11 +38,11 @@ class A3CAgent():
         self.state_size = (84, 84, 4)
         
         self.discount_factor = 0.99
-        self.lr = 1e-4
+        self.lr = 1e-6
         self.threads = 16
         
         self.global_model = A3C_model(self.action_size, self.state_size)
-        self.optimizer = keras.optimizers.Adam(learning_rate=self.lr, clipnorm=5.)
+        self.optimizer = keras.optimizers.Adam(learning_rate=self.lr, clipnorm=40.)
         # set actor/critic optimizer
 
         # self.model_path = os.path.join(os.getcwd(), 'save_model')
