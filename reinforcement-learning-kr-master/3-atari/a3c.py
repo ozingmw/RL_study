@@ -38,14 +38,13 @@ class A3CAgent():
         self.state_size = (84, 84, 4)
         
         self.discount_factor = 0.99
-        self.lr = 1e-6
+        self.lr = 1e-4
         self.threads = 16
         
         self.global_model = A3C_model(self.action_size, self.state_size)
         self.optimizer = keras.optimizers.Adam(learning_rate=self.lr, clipnorm=40.)
-        # set actor/critic optimizer
 
-        # self.model_path = os.path.join(os.getcwd(), 'save_model')
+        self.model_path = 'reinforcement-learning-kr-master/3-atari/1-breakout/save_model/a3c.h5'
 
     def train(self):
         runners = [Runner(self.env_name, self.action_size, self.state_size,
@@ -56,13 +55,11 @@ class A3CAgent():
             print(f'Start worker #{i+1}')
             runner.start()
 
-        # while True:
-        #     self.global_model.save_weights(self.model_path)
-        #     time.sleep(10*60)
+        while True:
+            self.global_model.save_weights(self.model_path)
+            time.sleep(10*60)
 
 class Runner(threading.Thread):
-    global_episode = 0
-
     def __init__(self, env_name, action_size, state_size, global_model,
                  discount_factor, optimizer):
         threading.Thread.__init__(self)
@@ -76,7 +73,7 @@ class Runner(threading.Thread):
         self.states, self.actions, self.rewards = [], [], []
 
         self.local_model = A3C_model(action_size, state_size)
-        self.agent_waiting = 20
+        self.agent_waiting = 30
         self.t = 0
         self.t_max = 20
 
@@ -190,7 +187,7 @@ class Runner(threading.Thread):
                     life = info['lives']
 
                 score += reward
-                reward = np.clip(reward, -1., 1.)
+                # reward = np.clip(reward, -1., 1.)
 
                 self.append_sample(history, action, reward)
 
@@ -203,13 +200,14 @@ class Runner(threading.Thread):
                 if self.t >= self.t_max or done:
                     self.train_model(done)
                     self.t = 0
+                    self.t_max += 0.01
 
                 if done:
                     episode += 1
                     score_max = score if score > score_max else score_max
                     score_avg = 0.9 * score_avg + 0.1 * score if score_avg != 0 else score
 
-                    print(f"episode: {episode:5d} | score: {score:4.1f} | score max: {score_max:4.1f} | score avg: {score_avg:.3f}")
+                    print(f"episode: {episode:5d} | score: {score:4.1f} | score max: {score_max:4.1f} | score avg: {score_avg:.3f} | t_max: {self.t_max:3.2f}")
 
                     break
 
