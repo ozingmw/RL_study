@@ -31,7 +31,7 @@ class Actor(Model):
         return [mu, std]
 
 class Critic(Model):
-    def __inti__(self):
+    def __init__(self):
         super(Critic, self).__init__()
 
         self.h1 = Dense(64, activation='relu')
@@ -55,17 +55,21 @@ class A2CAgent(object):
         self.CRITIC_LEARNING_RATE = 0.001
 
         self.env = env
-        self.state_dim = env.observation_space.shape[0]
+
+        self.observation_dim = env.observation_space.shape[0]
         self.action_dim = env.action_space.shape[0]
+
         self.action_bound = env.action_space.high[0]
         self.std_bound = [0.01, 1.0]
         
         self.actor = Actor(self.action_dim, self.action_bound)
         self.critic = Critic()
-        self.actor.build(input_shape=(None, self.state_dim))
-        self.critic.build(input_shape=(None, self.state_dim))
-        self.actor.summary()
-        self.critic.summary()
+        self.actor.build(input_shape=(None, self.observation_dim))
+        self.critic.build(input_shape=(None, self.observation_dim))
+        
+        # self.actor.summary()
+        # self.critic.summary()
+
         self.actor_optimizer = Adam(self.ACTOR_LEARNING_RATE)
         self.critic_optimizer = Adam(self.CRITIC_LEARNING_RATE)
         
@@ -78,16 +82,16 @@ class A2CAgent(object):
             state = self.env.reset()
 
             while not done:
-                self.env.render()
+                # self.env.render()
                 action = self.get_action(tf.convert_to_tensor([state], dtype=tf.float32))
                 action = np.clip(action, -self.action_bound, self.action_bound)
                 
                 next_state, reward, done, info = self.env.step(action)
                 
-                state = np.reshape(state, [1, self.state_dim])
+                state = np.reshape(state, [1, self.observation_dim])
                 action = np.reshape(action, [1, self.action_dim])
                 reward = np.reshape(reward, [1, 1])
-                next_state = np.reshape(next_state, [1, self.state_dim])
+                next_state = np.reshape(next_state, [1, self.observation_dim])
                 done = np.reshape(done, [1, 1])
 
                 # reward [-16.2736, 0] -> [-1, 1]
@@ -129,9 +133,9 @@ class A2CAgent(object):
 
                 state = next_state[0]
                 episode_reward += reward[0]
-                time += 1
+                episode_step += 1
         
-            print(f'Episode: {episode+1}, Time: {time}, Reward: {episode_reward}')
+            print(f'Episode: {episode+1}, Episode_step: {episode_step}, Reward: {episode_reward[0]:.3f}')
 
             self.save_episode_reward.append(episode_reward)
 
@@ -159,7 +163,8 @@ class A2CAgent(object):
     def td_target(self, rewards, next_v_values, dones):
         y_i = np.zeros(next_v_values.shape)
         for i in range(next_v_values.shape[0]):
-            y_i[i] = rewards[i] + (1 - dones[i]) * self.DISCOUNT_FACTOR * next_v_values
+            y_i[i] = rewards[i] + (1 - dones[i]) * self.DISCOUNT_FACTOR * next_v_values[i]
+        return y_i
 
     def critic_learn(self, states, td_targets):
         with tf.GradientTape() as tape:
@@ -175,7 +180,7 @@ class A2CAgent(object):
             loss_policy = log_policy_pdf * advantages
             loss = tf.reduce_mean(-loss_policy)
         grads = tape.gradient(loss, self.actor.trainable_variables)
-        self.actor_optimizer(zip(grads, self.actor.trainable_variables))
+        self.actor_optimizer.apply_gradients(zip(grads, self.actor.trainable_variables))
         
     def log_pdf(self, mu, std, action):
         std = tf.clip_by_value(std, self.std_bound[0], self.std_bound[1])
