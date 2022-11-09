@@ -104,10 +104,12 @@ class A2CAgent(object):
                 batch_next_state.append(next_state)
                 batch_done.append(done)
 
+
                 if len(batch_state) < self.BATCH_SIZE:
                     state = next_state[0]
                     episode_reward += reward[0]
                     episode_step += 1
+                    print(f'Episode: {episode+1}, Episode_step: {episode_step}, Reward: {episode_reward[0]:.3f}\r', end="")
                     continue
             
                 states = self.unpack_batch(batch_state)
@@ -134,6 +136,7 @@ class A2CAgent(object):
                 state = next_state[0]
                 episode_reward += reward[0]
                 episode_step += 1
+                print(f'Episode: {episode+1}, Episode_step: {episode_step}, Reward: {episode_reward[0]:.3f}\r', end="")
         
             print(f'Episode: {episode+1}, Episode_step: {episode_step}, Reward: {episode_reward[0]:.3f}')
 
@@ -143,8 +146,7 @@ class A2CAgent(object):
                 self.actor.save_weights('rl_with_math/model/pendulum_actor.h5')
                 self.critic.save_weights('rl_with_math/model/pendulum_critic.h5')
 
-        np.savetxt('./rl_with_math/model.pendulum_episode_reward.txt', self.save_episode_reward)
-        print(self.save_episode_reward)
+        np.savetxt('./rl_with_math/model/pendulum_episode_reward.txt', self.save_episode_reward, fmt='%.6f')
 
     def get_action(self, state):
         mu, std = self.actor(state)
