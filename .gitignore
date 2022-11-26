@@ -7,6 +7,7 @@ Omok/gym_omok/*
 LICENSE
 *.h5
 *.png
+*.txt
 __pycache__
 .python-version
 
