@@ -1,6 +1,7 @@
 import numpy as np
 import gym
 import matplotlib.pyplot as plt
+from collections import deque
 import tensorflow as tf
 from tensorflow import keras
 from keras.layers import Dense, Lambda
@@ -57,7 +58,7 @@ class PPOagent(object):
         self.RATIO_CLIPPING = 0.05
         self.EPOCHS = 5
 
-        self.env = gym.make("Pendulum-v1", g=9.81)
+        self.env = gym.make("Pendulum-v1", g=9.80665)
         self.state_dim = self.env.observation_space.shape[0]
         self.action_dim = self.env.action_space.shape[0]
         self.action_bound = self.env.action_space.high[0]
@@ -76,7 +77,7 @@ class PPOagent(object):
     def log_pdf(self, mu, std, action):
         std = tf.clip_by_value(std, self.std_bound[0], self.std_bound[1])
         var = std ** 2
-        log_policy_pdf = -0.5 * (action - mu) ** 2 / var - 0.5 * tf.math.log(var*2*np.pi)
+        log_policy_pdf = -0.5 * (action - mu) ** 2 / var - 0.5 * tf.math.log(var * 2 * np.pi)
         return tf.reduce_sum(log_policy_pdf, 1, keepdims=True)
 
     def get_policy_action(self, state):
@@ -85,6 +86,7 @@ class PPOagent(object):
         std = std.numpy()[0]
         std = np.clip(std, self.std_bound[0], self.std_bound[1])
         action = np.random.normal(mu, std, size=self.action_dim)
+        action = np.clip(action, -self.action_bound, self.action_bound)
         return mu, std, action
 
     def gae_target(self, rewards, v_values, next_v_value, done):
@@ -104,11 +106,20 @@ class PPOagent(object):
             n_step_targets[k] = gae[k] + v_values[k]
             return gae, n_step_targets
 
-    def unpack_batch(self, batch):
-        unpack = batch[0]
-        for idx in range(len(batch)-1):
-            unpack = np.append(unpack, batch[idx+1], axis=0)
-        return unpack
+    # def unpack_batch(self, batch):
+    #     unpack = batch[0]
+    #     for idx in range(len(batch)-1):
+    #         unpack = np.append(unpack, batch[idx+1], axis=0)
+    #     return unpack
+
+    def unpack_batch(self, batch_memory):
+        batch = [batch_memory[index] for index in range(self.BATCH_SIZE)]
+        states, actions, rewards, log_old_policy_pdfs = [
+            np.array(
+                [experience[field_index][0] for experience in batch]
+            ) for field_index in range(4)
+        ]
+        return states, actions, rewards, log_old_policy_pdfs
 
     def actor_learn(self, log_old_policy_pdf, states, actions, gaes):
         with tf.GradientTape() as tape:
@@ -130,7 +141,8 @@ class PPOagent(object):
         self.critic_optimizer.apply_gradients(zip(grads, self.critic.trainable_variables))
 
     def train(self, max_episode_num):
-        batch_state, batch_action, batch_reward, batch_log_old_policy_pdf = [], [], [], []
+        # batch_state, batch_action, batch_reward, batch_log_old_policy_pdf = [], [], [], []
+        batch_memory = deque()
 
         for episode in range(int(max_episode_num)):
             episode_step, episode_reward, done = 0, 0, False
@@ -153,23 +165,28 @@ class PPOagent(object):
                 reward_min = -16.2736
                 train_reward = (reward - reward_min/2) / -reward_min * 2
 
-                batch_state.append(state)
-                batch_action.append(action)
-                batch_reward.append(train_reward)
-                batch_log_old_policy_pdf.append(log_old_policy_pdf)
+                # batch_state.append(state)
+                # batch_action.append(action)
+                # batch_reward.append(train_reward)
+                # batch_log_old_policy_pdf.append(log_old_policy_pdf)
+                batch_memory.append((state, action, train_reward, log_old_policy_pdf))
 
-                if len(batch_state) < self.BATCH_SIZE:
+                if len(batch_memory) < self.BATCH_SIZE:
                     state = next_state
                     episode_reward += reward[0]
                     episode_step += 1
                     continue
 
-                states = self.unpack_batch(batch_state)
-                actions = self.unpack_batch(batch_action)
-                rewards = self.unpack_batch(batch_reward)
-                log_old_policy_pdfs = self.unpack_batch(batch_log_old_policy_pdf)
+                # states = self.unpack_batch(batch_state)
+                # actions = self.unpack_batch(batch_action)
+                # rewards = self.unpack_batch(batch_reward)
+                # log_old_policy_pdfs = self.unpack_batch(batch_log_old_policy_pdf)
 
-                batch_state, batch_action, batch_reward, batch_log_old_policy_pdf = [], [], [], []
+                # batch_state, batch_action, batch_reward, batch_log_old_policy_pdf = [], [], [], []
+
+                states, actions, rewards, log_old_policy_pdfs = self.unpack_batch(batch_memory)
+
+                batch_memory.clear()
 
                 next_v_value = self.critic(tf.convert_to_tensor([next_state], dtype=tf.float32))
                 v_value = self.critic(tf.convert_to_tensor(states, dtype=tf.float32))
@@ -180,6 +197,7 @@ class PPOagent(object):
                                      tf.convert_to_tensor(states, dtype=tf.float32),
                                      tf.convert_to_tensor(actions, dtype=tf.float32),
                                      tf.convert_to_tensor(gaes, dtype=tf.float32))
+                                     
                     self.critic_learn(tf.convert_to_tensor(states, dtype=tf.float32),
                                       tf.convert_to_tensor(y_i, dtype=tf.float32))
                 
