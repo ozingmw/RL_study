@@ -121,12 +121,12 @@ class PPOagent(object):
         ]
         return states, actions, rewards, log_old_policy_pdfs
 
-    def actor_learn(self, log_old_policy_pdf, states, actions, gaes):
+    def actor_learn(self, log_old_policy_pdfs, states, actions, gaes):
         with tf.GradientTape() as tape:
             mu, std = self.actor(states, training=True)
-            log_policy_pdf = self.log_pdf(mu, std, actions)
+            log_policy_pdfs = self.log_pdf(mu, std, actions)
 
-            ratio = tf.exp(log_policy_pdf - log_old_policy_pdf)
+            ratio = tf.exp(log_policy_pdfs - log_old_policy_pdfs)
             clipped_ratio = tf.clip_by_value(ratio, 1.0-self.RATIO_CLIPPING, 1.0+self.RATIO_CLIPPING)
             surrogate = -tf.minimum(ratio * gaes, clipped_ratio * gaes)
             loss = tf.reduce_mean(surrogate)
@@ -175,6 +175,7 @@ class PPOagent(object):
                     state = next_state
                     episode_reward += reward[0]
                     episode_step += 1
+                    print(f'Episode: {episode+1}, Episode_step: {episode_step}, Reward: {episode_reward[0]:.3f}\r', end="")
                     continue
 
                 # states = self.unpack_batch(batch_state)
