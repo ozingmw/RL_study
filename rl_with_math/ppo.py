@@ -104,7 +104,8 @@ class PPOagent(object):
             gae[k] = gae_cumulative
             forward_val = v_values[k]
             n_step_targets[k] = gae[k] + v_values[k]
-            return gae, n_step_targets
+        
+        return gae, n_step_targets
 
     # def unpack_batch(self, batch):
     #     unpack = batch[0]
@@ -162,7 +163,7 @@ class PPOagent(object):
                 reward = np.reshape(reward, [1, 1])
                 log_old_policy_pdf = np.reshape(log_old_policy_pdf, [1, 1])
 
-                reward_min = -16.2736
+                reward_min = -16.2736044
                 train_reward = (reward - reward_min/2) / -reward_min * 2
 
                 # batch_state.append(state)
