@@ -1,3 +1,8 @@
+'''
+    ~ 22.12.17
+    이후 추가예정
+'''
+
 import tensorflow as tf
 import numpy as np
 import scipy as sp
@@ -52,6 +57,7 @@ class GMM(object):
 
     def inference(self, pts):
         logwts = self.clusterwts(pts)
+
 
 
 class DynamicsPriorGMM(object):
